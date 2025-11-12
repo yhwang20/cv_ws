@@ -8,6 +8,10 @@ cv 2025 course project, implementing hand tracking for robot control
 git clone https://github.com/mariana-smith/cv_ws.git
 cd cv_ws
 
+# Create and activate Python virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
 # Install Python dependencies for hand_landmarker
 pip install -r src/hand_landmarker/requirements.txt
 
@@ -26,6 +30,17 @@ source install/setup.bash
 ros2 launch hand_landmarker hand_landmarker.launch.py
 ```
 
+## Running (after initial setup)
+
+For subsequent sessions, activate the virtual environment and source the workspace:
+```bash
+cd cv_ws
+colcon build
+source venv/bin/activate
+source setup.bash
+ros2 launch hand_landmarker hand_landmarker.launch.py
+```
+
 ## Viewing Output
 
 To view image stream:
@@ -38,5 +53,4 @@ To view pinch and hand position (pixels):
 ```bash
 ros2 topic echo /is_pinching
 ros2 topic echo /hand_pos
-```
 ```
