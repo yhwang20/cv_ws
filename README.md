@@ -8,12 +8,8 @@ cv 2025 course project, implementing hand tracking for robot control
 git clone https://github.com/mariana-smith/cv_ws.git
 cd cv_ws
 
-# Create and activate Python virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install Python dependencies for hand_landmarker
-pip install -r src/hand_landmarker/requirements.txt
+# Install Python dependencies for hand_landmarker (using --user flag to avoid system conflicts)
+pip install --user -r src/hand_landmarker/requirements.txt
 
 # Download the MediaPipe hand landmarker model
 cd src/hand_landmarker
@@ -24,7 +20,7 @@ cd ../..
 colcon build
 
 # Source the workspace
-source install/setup.bash
+source setup.bash
 
 # Launch the hand landmarker node
 ros2 launch hand_landmarker hand_landmarker.launch.py
@@ -32,11 +28,9 @@ ros2 launch hand_landmarker hand_landmarker.launch.py
 
 ## Running (after initial setup)
 
-For subsequent sessions, activate the virtual environment and source the workspace:
+For subsequent sessions, source the workspace:
 ```bash
 cd cv_ws
-colcon build
-source venv/bin/activate
 source setup.bash
 ros2 launch hand_landmarker hand_landmarker.launch.py
 ```
