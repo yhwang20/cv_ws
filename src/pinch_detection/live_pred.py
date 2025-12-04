@@ -1,29 +1,83 @@
 import cv2
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
+import torch
+import torch.nn as nn
+from torchvision import transforms, models
 from collections import deque
 
 class LiveGesturePredictor:
-    """Real-time hand gesture prediction using trained CNN."""
+    """Real-time hand gesture prediction using trained CNN (PyTorch)."""
     
-    def __init__(self, model_path='hand_gesture_model.keras', img_size=(128, 128)):
+    def __init__(self, model_path='hand_gesture_model.pth', img_size=(224, 224), device=None):
         """
         Initialize the predictor.
         
         Args:
             model_path: Path to trained model
             img_size: Input image size for model
+            device: Device to use (cuda/cpu)
         """
         self.img_size = img_size
         self.class_names = ['UNPINCHED', 'PINCHED']
         self.model = None
         self.prediction_history = deque(maxlen=10)  # Smooth predictions
         
+        # Set device
+        if device is None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = device
+        print(f"Using device: {self.device}")
+        
         # Load model
+        self.load_model(model_path)
+        
+        # Define transform
+        self.transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                               std=[0.229, 0.224, 0.225])
+        ])
+    
+    def load_model(self, model_path):
+        """Load the trained PyTorch model."""
         try:
-            self.model = keras.models.load_model(model_path)
+            # Build model architecture
+            base_model = models.efficientnet_b0(weights=None)
+            num_features = base_model.classifier[1].in_features
+            
+            base_model.classifier = nn.Sequential(
+                nn.Dropout(0.3),
+                nn.Linear(num_features, 512),
+                nn.BatchNorm1d(512),
+                nn.ReLU(),
+                nn.Dropout(0.5),
+                nn.Linear(512, 256),
+                nn.BatchNorm1d(256),
+                nn.ReLU(),
+                nn.Dropout(0.4),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Dropout(0.3),
+                nn.Linear(128, 1),
+                nn.Sigmoid()
+            )
+            
+            # Load weights
+            checkpoint = torch.load(model_path, map_location=self.device)
+            base_model.load_state_dict(checkpoint['model_state_dict'])
+            base_model.eval()
+            
+            self.model = base_model.to(self.device)
+            
+            # Get image size from checkpoint if available
+            if 'img_size' in checkpoint:
+                self.img_size = checkpoint['img_size']
+            
             print(f"Model loaded successfully from {model_path}")
+            print(f"Using input size: {self.img_size}")
+            
         except Exception as e:
             print(f"Error loading model: {e}")
             raise
@@ -42,10 +96,13 @@ class LiveGesturePredictor:
         img = cv2.resize(frame, self.img_size)
         # Convert BGR to RGB
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # Normalize
-        img = img.astype(np.float32) / 255.0
+        
+        # Apply transforms (normalization)
+        img = self.transform(img)
+        
         # Add batch dimension
-        img = np.expand_dims(img, axis=0)
+        img = img.unsqueeze(0)
+        
         return img
     
     def predict(self, frame):
@@ -59,7 +116,10 @@ class LiveGesturePredictor:
             Tuple of (class_name, confidence, raw_prediction)
         """
         preprocessed = self.preprocess_frame(frame)
-        prediction = self.model.predict(preprocessed, verbose=0)[0][0]
+        preprocessed = preprocessed.to(self.device)
+        
+        with torch.no_grad():
+            prediction = self.model(preprocessed).cpu().numpy()[0][0]
         
         # Add to history for smoothing
         self.prediction_history.append(prediction)
@@ -121,14 +181,19 @@ class LiveGesturePredictor:
         cv2.putText(frame_with_overlay, "Press 'q' to quit", 
                    (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
         
-        # Draw FPS counter region
-        cv2.putText(frame_with_overlay, "Live Prediction", 
-                   (w - 250, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        # Model indicator
+        cv2.putText(frame_with_overlay, "PyTorch Model", 
+                   (w - 220, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 200, 255), 2)
         
         return frame_with_overlay
     
-    def run(self):
-        """Run live prediction loop."""
+    def run(self, show_fps=True):
+        """
+        Run live prediction loop.
+        
+        Args:
+            show_fps: Whether to display FPS counter
+        """
         cap = cv2.VideoCapture(0)
         
         if not cap.isOpened():
@@ -140,12 +205,16 @@ class LiveGesturePredictor:
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         
         print("=" * 60)
-        print("Live Hand Gesture Prediction")
+        print("Live Hand Gesture Prediction (PyTorch)")
         print("=" * 60)
+        print(f"Model input size: {self.img_size}")
         print("Starting camera... Press 'q' to quit")
         print("=" * 60)
         
         frame_count = 0
+        import time
+        fps_start_time = time.time()
+        fps = 0
         
         while True:
             ret, frame = cap.read()
@@ -162,11 +231,22 @@ class LiveGesturePredictor:
             # Draw UI
             display_frame = self.draw_prediction_ui(frame, prediction, confidence, raw_value)
             
+            # Calculate and display FPS
+            if show_fps:
+                frame_count += 1
+                if frame_count % 10 == 0:
+                    fps_end_time = time.time()
+                    fps = 10 / (fps_end_time - fps_start_time)
+                    fps_start_time = fps_end_time
+                
+                cv2.putText(display_frame, f"FPS: {fps:.1f}", 
+                           (display_frame.shape[1] - 150, 70), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (100, 200, 255), 2)
+            
             # Show frame
             cv2.imshow('Hand Gesture Prediction', display_frame)
             
             # Print prediction occasionally
-            frame_count += 1
             if frame_count % 30 == 0:  # Print every 30 frames
                 print(f"Prediction: {prediction} | Confidence: {confidence * 100:.1f}%")
             
@@ -187,13 +267,18 @@ class LiveGesturePredictor:
 def main():
     """Run live prediction."""
     try:
-        predictor = LiveGesturePredictor(model_path='hand_gesture_model.keras')
-        predictor.run()
+        predictor = LiveGesturePredictor(
+            model_path='hand_gesture_model.pth',
+            img_size=(224, 224)  # Default for EfficientNet
+        )
+        predictor.run(show_fps=True)
     except FileNotFoundError:
-        print("\nError: Model file 'hand_gesture_model.keras' not found.")
-        print("Please train the model first using train_cnn.py")
+        print("\nError: Model file 'hand_gesture_model.pth' not found.")
+        print("Please train the model first using the PyTorch training script")
     except Exception as e:
         print(f"\nError: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
