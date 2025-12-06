@@ -21,10 +21,22 @@ def generate_launch_description():
         description='Path to hand landmarker model (relative to weights/ or absolute)'
     )
     
+    gesture_model_path_arg = DeclareLaunchArgument(
+        'gesture_recognizer_model_path',
+        default_value='gesture_recognizer.task',
+        description='Path to gesture recognizer model (relative to weights/ or absolute)'
+    )
+    
     custom_pinch_model_path_arg = DeclareLaunchArgument(
         'custom_pinch_model_path',
         default_value='hand_gesture_model.pth',
         description='Path to custom pinch model (relative to weights/ or absolute)'
+    )
+    
+    yolo_pose_model_path_arg = DeclareLaunchArgument(
+        'yolo_pose_model_path',
+        default_value='yolo11n-pose.pt',
+        description='Path to YOLO pose model (relative to weights/ or absolute)'
     )
     
     # Declare launch arguments for pinch model
@@ -77,6 +89,20 @@ def generate_launch_description():
         description='Rolling average window size for depth smoothing'
     )
     
+    # PINCH MODEL SELECTION
+    pinch_model_arg = DeclareLaunchArgument(
+        'pinch',
+        default_value='mediapipegesture',
+        description='Pinch detection model: custom, mediapipefinger, or mediapipegesture'
+    )
+    
+    # POSE MODEL SELECTION
+    pose_model_arg = DeclareLaunchArgument(
+        'pose',
+        default_value='mediapipe',
+        description='Pose detection model: mediapipe or yolo'
+    )
+    
     # Create unified vision node
     unified_vision_node = Node(
         package='unified_vision_node',
@@ -85,7 +111,9 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'hand_landmarker_model_path': LaunchConfiguration('hand_landmarker_model_path'),
+            'gesture_recognizer_model_path': LaunchConfiguration('gesture_recognizer_model_path'),
             'custom_pinch_model_path': LaunchConfiguration('custom_pinch_model_path'),
+            'yolo_pose_model_path': LaunchConfiguration('yolo_pose_model_path'),
             'pinch_threshold': LaunchConfiguration('pinch_threshold'),
             'min_hand_detection_confidence': LaunchConfiguration('min_hand_detection_confidence'),
             'min_hand_tracking_confidence': LaunchConfiguration('min_hand_tracking_confidence'),
@@ -94,6 +122,8 @@ def generate_launch_description():
             'pose_model_complexity': LaunchConfiguration('pose_model_complexity'),
             'hand_side': LaunchConfiguration('hand_side'),
             'depth_window_size': LaunchConfiguration('depth_window_size'),
+            'pinch': LaunchConfiguration('pinch'),
+            'pose': LaunchConfiguration('pose'),
         }],
         emulate_tty=True,
     )
@@ -135,7 +165,9 @@ def generate_launch_description():
     
     return LaunchDescription([
         hand_model_path_arg,
+        gesture_model_path_arg,
         custom_pinch_model_path_arg,
+        yolo_pose_model_path_arg,
         pinch_threshold_arg,
         min_hand_detection_conf_arg,
         min_hand_tracking_conf_arg,
@@ -144,6 +176,8 @@ def generate_launch_description():
         pose_model_complexity_arg,
         hand_side_arg,
         depth_window_size_arg,
+        pinch_model_arg,
+        pose_model_arg,
         realsense_node,
         unified_vision_node,
         static_tf_node,

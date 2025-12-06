@@ -16,6 +16,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.mediapipe_finger_pinch import MediapipeFingerPinch
 from models.mediapipe_shoulder_wrist import MediapipeShoulderWrist
+from models.yolo_shoulder_wrist import YoloShoulderWrist
 from models.custom_finger_pinch import CustomFingerPinch  
 from models.mediapipe_gesture_recognition import MediapipeGestureRecognition
 
@@ -28,6 +29,7 @@ class UnifiedVisionNode(Node):
         self.declare_parameter('hand_landmarker_model_path', 'hand_landmarker.task')
         self.declare_parameter('gesture_recognizer_model_path', 'gesture_recognizer.task')
         self.declare_parameter('custom_pinch_model_path', 'hand_gesture_model.pth')
+        self.declare_parameter('yolo_pose_model_path', 'yolo11n-pose.pt')
         self.declare_parameter('min_hand_detection_confidence', 0.5)
         self.declare_parameter('min_hand_tracking_confidence', 0.5)
         self.declare_parameter('pinch_threshold', 0.65)
@@ -38,9 +40,14 @@ class UnifiedVisionNode(Node):
         self.declare_parameter('hand_side', 'RIGHT')
         self.declare_parameter('depth_window_size', 20)
         
+        # Model selection parameters
+        self.declare_parameter('pinch', 'custom')
+        self.declare_parameter('pose', 'mediapipe')
+        
         hand_model_path = self.get_parameter('hand_landmarker_model_path').get_parameter_value().string_value
         gesture_model_path = self.get_parameter('gesture_recognizer_model_path').get_parameter_value().string_value
         custom_pinch_model_path = self.get_parameter('custom_pinch_model_path').get_parameter_value().string_value
+        yolo_pose_model_path = self.get_parameter('yolo_pose_model_path').get_parameter_value().string_value
         min_hand_detection_conf = self.get_parameter('min_hand_detection_confidence').get_parameter_value().double_value
         min_hand_tracking_conf = self.get_parameter('min_hand_tracking_confidence').get_parameter_value().double_value
         pinch_threshold = self.get_parameter('pinch_threshold').get_parameter_value().double_value
@@ -50,6 +57,10 @@ class UnifiedVisionNode(Node):
         pose_complexity = self.get_parameter('pose_model_complexity').get_parameter_value().integer_value
         hand_side = self.get_parameter('hand_side').get_parameter_value().string_value
         depth_window_size = self.get_parameter('depth_window_size').get_parameter_value().integer_value
+        
+        # Get model selection parameters
+        pinch_model = self.get_parameter('pinch').get_parameter_value().string_value
+        pose_model = self.get_parameter('pose').get_parameter_value().string_value
         
         # Resolve model paths - try as absolute first, then in unified_vision_node/weights
         if not os.path.isabs(hand_model_path) or not os.path.exists(hand_model_path):
@@ -93,6 +104,20 @@ class UnifiedVisionNode(Node):
                 if os.path.exists(full_model_path):
                     custom_pinch_model_path = full_model_path
         
+        # Resolve YOLO pose model path
+        if not os.path.isabs(yolo_pose_model_path) or not os.path.exists(yolo_pose_model_path):
+            try:
+                package_share_dir = get_package_share_directory('unified_vision_node')
+                full_model_path = os.path.join(package_share_dir, 'weights', yolo_pose_model_path)
+                if os.path.exists(full_model_path):
+                    yolo_pose_model_path = full_model_path
+            except Exception:
+                # Fall back to relative path from package source
+                weights_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'weights')
+                full_model_path = os.path.join(weights_dir, yolo_pose_model_path)
+                if os.path.exists(full_model_path):
+                    yolo_pose_model_path = full_model_path
+        
         self.bridge = CvBridge()
         
         self.latest_depth_image = None
@@ -100,46 +125,59 @@ class UnifiedVisionNode(Node):
         self.latest_camera_info = None
         
         try:
-            # # OPTION 1: MediaPipe Hand Landmarker + custom pinch detection
-            # self.mediapipe_finger_pinch = MediapipeFingerPinch(
-            #     model_path=hand_model_path,
-            #     min_detection_confidence=min_hand_detection_conf,
-            #     min_tracking_confidence=min_hand_tracking_conf,
-            #     pinch_threshold=pinch_threshold
-            # )
-            
-            # # OPTION 2: Custom CNN model for pinch detection
-            # self.mediapipe_finger_pinch = CustomFingerPinch(
-            #     model_path=custom_pinch_model_path,
-            #     threshold=0.5
-            # )
-            # self.get_logger().info(f'custom CNN pinch detection initialized: {custom_pinch_model_path}')
-            
-            # OPTION 3: MediaPipe Gesture Recognizer (recognizes 7 gestures including Open_Palm and Closed_Fist)
-            self.mediapipe_finger_pinch = MediapipeGestureRecognition(
-                model_path=gesture_model_path,
-                min_detection_confidence=min_hand_detection_conf,
-                min_tracking_confidence=min_hand_tracking_conf,
-                gesture_classes=['Closed_Fist', 'Open_Palm'],  # Closed_Fist → is_pinching=True
-                num_hands=2
-            )
-
-            self.get_logger().info(f'mediapipe gesture recognition initialized: {gesture_model_path}')
+            # Initialize pinch detection model based on parameter
+            if pinch_model == 'custom':
+                self.mediapipe_finger_pinch = CustomFingerPinch(
+                    model_path=custom_pinch_model_path,
+                    threshold=0.5
+                )
+                self.get_logger().info(f'Custom CNN pinch detection initialized: {custom_pinch_model_path}')
+            elif pinch_model == 'mediapipefinger':
+                self.mediapipe_finger_pinch = MediapipeFingerPinch(
+                    model_path=hand_model_path,
+                    min_detection_confidence=min_hand_detection_conf,
+                    min_tracking_confidence=min_hand_tracking_conf,
+                    pinch_threshold=pinch_threshold
+                )
+                self.get_logger().info(f'MediaPipe finger pinch initialized: {hand_model_path}')
+            elif pinch_model == 'mediapipegesture':
+                self.mediapipe_finger_pinch = MediapipeGestureRecognition(
+                    model_path=gesture_model_path,
+                    min_detection_confidence=min_hand_detection_conf,
+                    min_tracking_confidence=min_hand_tracking_conf,
+                    gesture_classes=['Closed_Fist', 'Open_Palm'],
+                    num_hands=2
+                )
+                self.get_logger().info(f'MediaPipe gesture recognition initialized: {gesture_model_path}')
+            else:
+                raise ValueError(f"Invalid pinch model: {pinch_model}. Must be 'custom', 'mediapipefinger', or 'mediapipegesture'")
         except Exception as e:
-            self.get_logger().error(f'failed to initialize finger pinch: {e}')
+            self.get_logger().error(f'Failed to initialize pinch detection: {e}')
             raise
         
         try:
-            self.mediapipe_shoulder_wrist = MediapipeShoulderWrist(
-                min_detection_confidence=min_pose_detection_conf,
-                min_tracking_confidence=min_pose_tracking_conf,
-                model_complexity=pose_complexity,
-                hand_side=hand_side,
-                depth_window_size=depth_window_size
-            )
-            self.get_logger().info(f'mediapipe shoulder/wrist initialized (hand: {hand_side}, window: {depth_window_size})')
+            # Initialize pose detection model based on parameter
+            if pose_model == 'mediapipe':
+                self.mediapipe_shoulder_wrist = MediapipeShoulderWrist(
+                    min_detection_confidence=min_pose_detection_conf,
+                    min_tracking_confidence=min_pose_tracking_conf,
+                    model_complexity=pose_complexity,
+                    hand_side=hand_side,
+                    depth_window_size=depth_window_size
+                )
+                self.get_logger().info(f'MediaPipe shoulder/wrist initialized (hand: {hand_side}, window: {depth_window_size})')
+            elif pose_model == 'yolo':
+                self.mediapipe_shoulder_wrist = YoloShoulderWrist(
+                    model_path=yolo_pose_model_path,
+                    hand_side=hand_side,
+                    depth_window_size=depth_window_size,
+                    confidence_threshold=min_pose_detection_conf
+                )
+                self.get_logger().info(f'YOLO shoulder/wrist initialized: {yolo_pose_model_path} (hand: {hand_side}, window: {depth_window_size})')
+            else:
+                raise ValueError(f"Invalid pose model: {pose_model}. Must be 'mediapipe' or 'yolo'")
         except Exception as e:
-            self.get_logger().error(f'failed to initialize shoulder/wrist: {e}')
+            self.get_logger().error(f'Failed to initialize pose detection: {e}')
             raise
         
         self.image_sub = self.create_subscription(Image, '/camera/camera/color/image_raw', self.image_callback, 10)

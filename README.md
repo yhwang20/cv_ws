@@ -8,13 +8,8 @@ cv 2025 course project, implementing hand tracking for robot control
 git clone https://github.com/mariana-smith/cv_ws.git
 cd cv_ws
 
-# Install Python dependencies for hand_landmarker (using --user flag to avoid system conflicts)
-pip install --user -r src/hand_landmarker/requirements.txt
-
-# Download the MediaPipe hand landmarker model
-cd src/hand_landmarker
-wget https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
-cd ../..
+# Install Python dependencies (using --user flag to avoid system conflicts)
+pip install --user -r src/unified_vision_node/requirements.txt
 
 # Build the ROS2 workspace
 colcon build
@@ -22,8 +17,8 @@ colcon build
 # Source the workspace
 source setup.bash
 
-# Launch the hand landmarker node
-ros2 launch hand_landmarker hand_landmarker.launch.py
+# Launch the unified vision system
+ros2 launch unified_vision_node unified_vision.launch.py
 ```
 
 ## Running (after initial setup)
@@ -32,19 +27,42 @@ For subsequent sessions, source the workspace:
 ```bash
 cd cv_ws
 source setup.bash
-ros2 launch hand_landmarker hand_landmarker.launch.py
+ros2 launch unified_vision_node unified_vision.launch.py
 ```
+
+## Model Selection
+
+Choose your pinch and pose detection models:
+```bash
+# Custom CNN pinch + YOLO pose (default, fastest)
+ros2 launch unified_vision_node unified_vision.launch.py pinch:=custom pose:=yolo
+
+# MediaPipe finger pinch + MediaPipe pose
+ros2 launch unified_vision_node unified_vision.launch.py pinch:=mediapipefinger pose:=mediapipe
+
+# MediaPipe gesture recognition + YOLO pose
+ros2 launch unified_vision_node unified_vision.launch.py pinch:=mediapipegesture pose:=yolo
+```
+
+**Available pinch models:** `custom`, `mediapipefinger`, `mediapipegesture`  
+**Available pose models:** `mediapipe`, `yolo`
 
 ## Viewing Output
 
-To view image stream:
+To view annotated image stream:
 ```bash
 ros2 run rqt_image_view rqt_image_view
 ```
-Topics: `/image`, `/image_annotated`
+Topic: `/image_annotated`
 
-To view pinch and hand position (pixels):
+To echo the pinch and pose topics:
 ```bash
+# Pinch state (std_msgs/Bool)
 ros2 topic echo /is_pinching
-ros2 topic echo /hand_pos
+
+# Wrist position (geometry_msgs/PoseStamped)
+ros2 topic echo /wrist_position
+
+# Shoulder position (geometry_msgs/PoseStamped)
+ros2 topic echo /shoulder_position
 ```

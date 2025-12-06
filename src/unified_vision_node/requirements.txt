@@ -7,6 +7,9 @@ numpy>=1.21.0
 torch>=2.0.0
 torchvision>=0.15.0
 
+# YOLO for pose detection
+ultralytics>=8.0.0
+
 # ROS2 Python dependencies (usually system-installed)
 # rclpy
 # cv_bridge
