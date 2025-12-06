@@ -32,14 +32,11 @@ ros2 launch unified_vision_node unified_vision.launch.py
 Choose your pinch and pose detection models:
 
 ```bash
-# Custom CNN pinch + YOLO pose (default, fastest)
-ros2 launch unified_vision_node unified_vision.launch.py pinch:=custom pose:=yolo
-
-# MediaPipe finger pinch + MediaPipe pose
-ros2 launch unified_vision_node unified_vision.launch.py pinch:=mediapipefinger pose:=mediapipe
-
-# MediaPipe gesture recognition + YOLO pose
+# MediaPipe gesture recognition + MediaPipe pose (default, baseline)
 ros2 launch unified_vision_node unified_vision.launch.py pinch:=mediapipegesture pose:=yolo
+
+# MediaPipe finger pinch + YOLO pose
+ros2 launch unified_vision_node unified_vision.launch.py pinch:=mediapipefinger pose:=mediapipe
 ```
 
 **Available pinch models:** `custom`, `mediapipefinger`, `mediapipegesture`  
