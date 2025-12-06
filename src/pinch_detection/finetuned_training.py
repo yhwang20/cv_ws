@@ -661,7 +661,6 @@ def main():
     print("=" * 60)
     print(f"\nModel saved as: {model_path}")
     print("This model uses MediaPipe hand detection + EfficientNet-B0")
-    print("It should be robust against busy backgrounds!")
 
 
 if __name__ == "__main__":
