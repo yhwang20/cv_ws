@@ -5,7 +5,9 @@ import torch.nn as nn
 from torchvision import transforms, models
 from collections import deque
 import os
+from ament_index_python.packages import get_package_share_directory
 
+# Owen's custom CNN for hand "pinch" classification.
 
 class CustomFingerPinch:
     
@@ -20,12 +22,19 @@ class CustomFingerPinch:
         self.prediction_history = deque(maxlen=smoothing_window)
         self.threshold = threshold
         
-        # find model path - check if absolute or relative to pinch_detection
-        if not os.path.exists(model_path):
-            pinch_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'pinch_detection')
-            alt_path = os.path.join(pinch_dir, model_path)
-            if os.path.exists(alt_path):
-                model_path = alt_path
+        # Resolve model path - try as absolute path first, then in package weights directory
+        if not os.path.isabs(model_path) or not os.path.exists(model_path):
+            try:
+                package_share_dir = get_package_share_directory('unified_vision_node')
+                weights_path = os.path.join(package_share_dir, 'weights', model_path)
+                if os.path.exists(weights_path):
+                    model_path = weights_path
+            except Exception:
+                # Fall back to relative path from this file
+                weights_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'weights')
+                weights_path = os.path.join(weights_dir, model_path)
+                if os.path.exists(weights_path):
+                    model_path = weights_path
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         

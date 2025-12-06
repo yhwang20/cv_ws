@@ -16,7 +16,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.mediapipe_finger_pinch import MediapipeFingerPinch
 from models.mediapipe_shoulder_wrist import MediapipeShoulderWrist
-# from models.custom_finger_pinch import CustomFingerPinch  # swap for cnn-based pinch detection
+from models.custom_finger_pinch import CustomFingerPinch  
+from models.mediapipe_gesture_recognition import MediapipeGestureRecognition
 
 
 class UnifiedVisionNode(Node):
@@ -25,6 +26,8 @@ class UnifiedVisionNode(Node):
         super().__init__('unified_vision')
         
         self.declare_parameter('hand_landmarker_model_path', 'hand_landmarker.task')
+        self.declare_parameter('gesture_recognizer_model_path', 'gesture_recognizer.task')
+        self.declare_parameter('custom_pinch_model_path', 'hand_gesture_model.pth')
         self.declare_parameter('min_hand_detection_confidence', 0.5)
         self.declare_parameter('min_hand_tracking_confidence', 0.5)
         self.declare_parameter('pinch_threshold', 0.65)
@@ -36,6 +39,8 @@ class UnifiedVisionNode(Node):
         self.declare_parameter('depth_window_size', 20)
         
         hand_model_path = self.get_parameter('hand_landmarker_model_path').get_parameter_value().string_value
+        gesture_model_path = self.get_parameter('gesture_recognizer_model_path').get_parameter_value().string_value
+        custom_pinch_model_path = self.get_parameter('custom_pinch_model_path').get_parameter_value().string_value
         min_hand_detection_conf = self.get_parameter('min_hand_detection_confidence').get_parameter_value().double_value
         min_hand_tracking_conf = self.get_parameter('min_hand_tracking_confidence').get_parameter_value().double_value
         pinch_threshold = self.get_parameter('pinch_threshold').get_parameter_value().double_value
@@ -46,13 +51,47 @@ class UnifiedVisionNode(Node):
         hand_side = self.get_parameter('hand_side').get_parameter_value().string_value
         depth_window_size = self.get_parameter('depth_window_size').get_parameter_value().integer_value
         
-        try:
-            package_share_dir = get_package_share_directory('hand_landmarker')
-            full_model_path = os.path.join(package_share_dir, 'models', hand_model_path)
-            if os.path.exists(full_model_path):
-                hand_model_path = full_model_path
-        except Exception:
-            pass
+        # Resolve model paths - try as absolute first, then in unified_vision_node/weights
+        if not os.path.isabs(hand_model_path) or not os.path.exists(hand_model_path):
+            try:
+                package_share_dir = get_package_share_directory('unified_vision_node')
+                full_model_path = os.path.join(package_share_dir, 'weights', hand_model_path)
+                if os.path.exists(full_model_path):
+                    hand_model_path = full_model_path
+            except Exception:
+                # Fall back to relative path from package source
+                weights_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'weights')
+                full_model_path = os.path.join(weights_dir, hand_model_path)
+                if os.path.exists(full_model_path):
+                    hand_model_path = full_model_path
+        
+        # Resolve gesture model path
+        if not os.path.isabs(gesture_model_path) or not os.path.exists(gesture_model_path):
+            try:
+                package_share_dir = get_package_share_directory('unified_vision_node')
+                full_model_path = os.path.join(package_share_dir, 'weights', gesture_model_path)
+                if os.path.exists(full_model_path):
+                    gesture_model_path = full_model_path
+            except Exception:
+                # Fall back to relative path from package source
+                weights_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'weights')
+                full_model_path = os.path.join(weights_dir, gesture_model_path)
+                if os.path.exists(full_model_path):
+                    gesture_model_path = full_model_path
+        
+        # Resolve custom pinch model path
+        if not os.path.isabs(custom_pinch_model_path) or not os.path.exists(custom_pinch_model_path):
+            try:
+                package_share_dir = get_package_share_directory('unified_vision_node')
+                full_model_path = os.path.join(package_share_dir, 'weights', custom_pinch_model_path)
+                if os.path.exists(full_model_path):
+                    custom_pinch_model_path = full_model_path
+            except Exception:
+                # Fall back to relative path from package source
+                weights_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'weights')
+                full_model_path = os.path.join(weights_dir, custom_pinch_model_path)
+                if os.path.exists(full_model_path):
+                    custom_pinch_model_path = full_model_path
         
         self.bridge = CvBridge()
         
@@ -61,18 +100,31 @@ class UnifiedVisionNode(Node):
         self.latest_camera_info = None
         
         try:
-            self.mediapipe_finger_pinch = MediapipeFingerPinch(
-                model_path=hand_model_path,
-                min_detection_confidence=min_hand_detection_conf,
-                min_tracking_confidence=min_hand_tracking_conf,
-                pinch_threshold=pinch_threshold
-            )
-            # to use custom cnn model instead:
+            # # OPTION 1: MediaPipe Hand Landmarker + custom pinch detection
+            # self.mediapipe_finger_pinch = MediapipeFingerPinch(
+            #     model_path=hand_model_path,
+            #     min_detection_confidence=min_hand_detection_conf,
+            #     min_tracking_confidence=min_hand_tracking_conf,
+            #     pinch_threshold=pinch_threshold
+            # )
+            
+            # # OPTION 2: Custom CNN model for pinch detection
             # self.mediapipe_finger_pinch = CustomFingerPinch(
-            #     model_path='hand_gesture_model.pth',
+            #     model_path=custom_pinch_model_path,
             #     threshold=0.5
             # )
-            self.get_logger().info(f'mediapipe finger pinch initialized: {hand_model_path}')
+            # self.get_logger().info(f'custom CNN pinch detection initialized: {custom_pinch_model_path}')
+            
+            # OPTION 3: MediaPipe Gesture Recognizer (recognizes 7 gestures including Open_Palm and Closed_Fist)
+            self.mediapipe_finger_pinch = MediapipeGestureRecognition(
+                model_path=gesture_model_path,
+                min_detection_confidence=min_hand_detection_conf,
+                min_tracking_confidence=min_hand_tracking_conf,
+                gesture_classes=['Closed_Fist', 'Open_Palm'],  # Closed_Fist → is_pinching=True
+                num_hands=2
+            )
+
+            self.get_logger().info(f'mediapipe gesture recognition initialized: {gesture_model_path}')
         except Exception as e:
             self.get_logger().error(f'failed to initialize finger pinch: {e}')
             raise
@@ -97,8 +149,9 @@ class UnifiedVisionNode(Node):
         self.image_pub = self.create_publisher(Image, '/image_annotated', 10)
         self.camera_info_pub = self.create_publisher(CameraInfo, '/camera_info', 10)
         self.pinch_pub = self.create_publisher(Bool, '/is_pinching', 10)
-        self.wrist_pos_pub = self.create_publisher(PoseStamped, '/wrist_position', 10)
-        self.shoulder_pos_pub = self.create_publisher(PoseStamped, '/shoulder_position', 10)
+        self.wrist_pos_pub = self.create_publisher(PoseStamped, '/wrist_in_camera', 10)
+        self.shoulder_pos_pub = self.create_publisher(PoseStamped, '/shoulder_in_camera', 10)
+        self.wrist_in_shoulder_pub = self.create_publisher(PoseStamped, '/wrist_in_shoulder', 10)
         
         self.tf_broadcaster = TransformBroadcaster(self)
         
@@ -156,6 +209,11 @@ class UnifiedVisionNode(Node):
             
             if loc_result['shoulder_position'] is not None:
                 self._publish_pose_and_tf('shoulder', loc_result['shoulder_position'], msg.header.stamp, 'camera_link')
+            
+            # Calculate and publish wrist position relative to shoulder
+            if loc_result['wrist_position'] is not None and loc_result['shoulder_position'] is not None:
+                wrist_in_shoulder = np.array(loc_result['wrist_position']) - np.array(loc_result['shoulder_position'])
+                self._publish_wrist_in_shoulder(wrist_in_shoulder, msg.header.stamp)
             
             self.get_logger().info(
                 f'pinch: {pinch_result["is_pinching"]} | wrist: {loc_result["wrist_position"] is not None} | shoulder: {loc_result["shoulder_position"] is not None}',
@@ -221,6 +279,22 @@ class UnifiedVisionNode(Node):
         tf_msg.transform.rotation.w = 1.0
         
         self.tf_broadcaster.sendTransform(tf_msg)
+    
+    def _publish_wrist_in_shoulder(self, relative_coords, timestamp):
+        pose_msg = PoseStamped()
+        pose_msg.header.stamp = timestamp
+        pose_msg.header.frame_id = 'shoulder_position'
+        
+        pose_msg.pose.position.x = relative_coords[0]
+        pose_msg.pose.position.y = relative_coords[1]
+        pose_msg.pose.position.z = relative_coords[2]
+        
+        pose_msg.pose.orientation.x = 0.0
+        pose_msg.pose.orientation.y = 0.0
+        pose_msg.pose.orientation.z = 0.0
+        pose_msg.pose.orientation.w = 1.0
+        
+        self.wrist_in_shoulder_pub.publish(pose_msg)
 
 
 def main(args=None):

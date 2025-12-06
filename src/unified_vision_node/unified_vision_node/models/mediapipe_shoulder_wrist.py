@@ -1,11 +1,9 @@
 import numpy as np
 import cv2
 from collections import deque
-import sys
-import os
+import mediapipe as mp
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'Hand_and_body_detection'))
-from hand_body_detection.core.pose_detector import PoseDetector
+# MediaPipe pose detection for wrist and shoulder xyz (Yusoo) 
 
 
 class MediapipeShoulderWrist:
@@ -16,7 +14,12 @@ class MediapipeShoulderWrist:
                  hand_side='RIGHT',
                  depth_window_size=20):
         
-        self.detector = PoseDetector(
+        # Create MediaPipe pose detector directly
+        self.mp_pose = mp.solutions.pose
+        self.mp_drawing = mp.solutions.drawing_utils
+        self.mp_drawing_styles = mp.solutions.drawing_styles
+        
+        self.pose = self.mp_pose.Pose(
             min_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
             model_complexity=model_complexity
@@ -27,7 +30,7 @@ class MediapipeShoulderWrist:
         self.shoulder_depth_buffer = deque(maxlen=depth_window_size)
     
     def __call__(self, rgb_image, depth_image, camera_info):
-        results = self.detector.detect(rgb_image)
+        results = self.pose.process(rgb_image)
         
         output = {
             'wrist_position': None,
@@ -38,9 +41,16 @@ class MediapipeShoulderWrist:
             'annotated_image': rgb_image.copy()
         }
         
-        self.detector.draw_landmarks(output['annotated_image'], results)
+        # Draw pose landmarks
+        if results.pose_landmarks:
+            self.mp_drawing.draw_landmarks(
+                output['annotated_image'],
+                results.pose_landmarks,
+                self.mp_pose.POSE_CONNECTIONS,
+                landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style()
+            )
         
-        positions = self.detector.get_wrist_shoulder_positions(results, self.hand_side)
+        positions = self._get_wrist_shoulder_positions(results, self.hand_side)
         
         if positions is not None:
             wrist_norm = positions['wrist']
@@ -89,6 +99,32 @@ class MediapipeShoulderWrist:
                     )
         
         return output
+    
+    def _get_wrist_shoulder_positions(self, results, hand='RIGHT'):
+        """Extract wrist and shoulder positions from pose landmarks."""
+        if not results.pose_landmarks:
+            return None
+        
+        landmarks = results.pose_landmarks.landmark
+        
+        if hand.upper() == 'RIGHT':
+            wrist_idx = self.mp_pose.PoseLandmark.RIGHT_WRIST.value
+            shoulder_idx = self.mp_pose.PoseLandmark.RIGHT_SHOULDER.value
+            elbow_idx = self.mp_pose.PoseLandmark.RIGHT_ELBOW.value
+        else:
+            wrist_idx = self.mp_pose.PoseLandmark.LEFT_WRIST.value
+            shoulder_idx = self.mp_pose.PoseLandmark.LEFT_SHOULDER.value
+            elbow_idx = self.mp_pose.PoseLandmark.LEFT_ELBOW.value
+        
+        wrist = landmarks[wrist_idx]
+        shoulder = landmarks[shoulder_idx]
+        elbow = landmarks[elbow_idx]
+        
+        return {
+            'wrist': (wrist.x, wrist.y, wrist.z),
+            'shoulder': (shoulder.x, shoulder.y, shoulder.z),
+            'elbow': (elbow.x, elbow.y, elbow.z)
+        }
     
     def _get_depth_at_pixel(self, depth_image, pixel_x, pixel_y):
         if depth_image is None:

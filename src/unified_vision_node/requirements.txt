@@ -1,0 +1,17 @@
+# Core dependencies for unified_vision_node
+mediapipe>=0.10.0
+opencv-python>=4.5.0
+numpy>=1.21.0
+
+# PyTorch for custom CNN model
+torch>=2.0.0
+torchvision>=0.15.0
+
+# ROS2 Python dependencies (usually system-installed)
+# rclpy
+# cv_bridge
+# sensor_msgs
+# geometry_msgs
+# std_msgs
+# tf2_ros
+

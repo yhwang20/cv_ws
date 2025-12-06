@@ -1,7 +1,12 @@
 import numpy as np
 import cv2
-from hand_landmarker import HandLandmarkDetector, DetectorConfig, draw_landmarks_on_image
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+from mediapipe.framework.formats import landmark_pb2
 
+
+# Mariana's code that takes Mediapipe hand landmarks (fingertips etc) and computes if the hand is pinching.
 
 class MediapipeFingerPinch:
     
@@ -10,17 +15,22 @@ class MediapipeFingerPinch:
                  min_tracking_confidence=0.5,
                  pinch_threshold=0.65):
         
-        config = DetectorConfig(
-            model_path=model_path,
+        # Create MediaPipe hand landmarker directly
+        base_options = python.BaseOptions(model_asset_path=model_path)
+        options = vision.HandLandmarkerOptions(
+            base_options=base_options,
+            num_hands=2,
+            min_hand_detection_confidence=min_detection_confidence,
+            min_hand_presence_confidence=0.5,
             min_tracking_confidence=min_tracking_confidence,
-            min_hand_detection_confidence=min_detection_confidence
         )
-        
-        self.detector = HandLandmarkDetector(config)
+        self.detector = vision.HandLandmarker.create_from_options(options)
         self.pinch_threshold = pinch_threshold
     
     def __call__(self, rgb_image, depth_image, camera_info):
-        result = self.detector.detect(rgb_image)
+        # Convert to MediaPipe image format
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
+        result = self.detector.detect(mp_image)
         
         output = {
             'is_pinching': False,
@@ -30,7 +40,7 @@ class MediapipeFingerPinch:
             'annotated_image': rgb_image.copy()
         }
         
-        output['annotated_image'] = draw_landmarks_on_image(rgb_image, result)
+        output['annotated_image'] = self._draw_landmarks_on_image(rgb_image, result)
         
         if len(result.hand_landmarks) > 0:
             is_pinching, normalized_spread = self._detect_pinch(result.hand_landmarks[0])
@@ -44,6 +54,53 @@ class MediapipeFingerPinch:
             cv2.circle(output['annotated_image'], (palm_x, palm_y), 8, (255, 255, 255), 2)
         
         return output
+    
+    def _draw_landmarks_on_image(self, rgb_image, detection_result):
+        """Draw hand landmarks on the image."""
+        hand_landmarks_list = detection_result.hand_landmarks
+        handedness_list = detection_result.handedness
+        annotated_image = np.copy(rgb_image)
+
+        for idx in range(len(hand_landmarks_list)):
+            hand_landmarks = hand_landmarks_list[idx]
+            handedness = handedness_list[idx]
+
+            # Convert landmarks to protobuf format
+            hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
+            hand_landmarks_proto.landmark.extend([
+                landmark_pb2.NormalizedLandmark(
+                    x=landmark.x, y=landmark.y, z=landmark.z
+                ) for landmark in hand_landmarks
+            ])
+            
+            # Draw landmarks
+            mp.solutions.drawing_utils.draw_landmarks(
+                annotated_image,
+                hand_landmarks_proto,
+                mp.solutions.hands.HAND_CONNECTIONS,
+                mp.solutions.drawing_styles.get_default_hand_landmarks_style(),
+                mp.solutions.drawing_styles.get_default_hand_connections_style()
+            )
+
+            # Add handedness label
+            height, width, _ = annotated_image.shape
+            x_coordinates = [landmark.x for landmark in hand_landmarks]
+            y_coordinates = [landmark.y for landmark in hand_landmarks]
+            text_x = int(min(x_coordinates) * width)
+            text_y = int(min(y_coordinates) * height) - 10
+
+            cv2.putText(
+                annotated_image,
+                f"{handedness[0].category_name}",
+                (text_x, text_y),
+                cv2.FONT_HERSHEY_DUPLEX,
+                1.0,
+                (88, 205, 54),
+                1,
+                cv2.LINE_AA
+            )
+
+        return annotated_image
     
     def _detect_pinch(self, hand_landmarks):
         # fingertip indices: thumb, index, middle, ring, pinky
