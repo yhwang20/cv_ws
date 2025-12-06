@@ -1,6 +1,21 @@
 # cv_ws
 cv 2025 course project, implementing hand tracking for robot control
 
+## System Dependencies
+
+**ROS2 packages:**
+- ROS2 Humble or later
+- `realsense2_camera` (for Intel RealSense camera)
+- `rviz2`
+- `tf2_ros`
+
+**Python packages:**
+See `requirements.txt` for full list. Install with:
+```bash
+pip install --user -r src/unified_vision_node/requirements.txt
+```
+
+
 ## Setup Instructions
 
 ```bash
@@ -98,19 +113,6 @@ unified_vision_node/
 └── README.md
 ```
 
-## System Dependencies
-
-**ROS2 packages:**
-- ROS2 Humble or later
-- `realsense2_camera` (for Intel RealSense camera)
-- `rviz2`
-- `tf2_ros`
-
-**Python packages:**
-See `requirements.txt` for full list. Install with:
-```bash
-pip install --user -r src/unified_vision_node/requirements.txt
-```
 
 
 
