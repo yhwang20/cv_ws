@@ -76,25 +76,22 @@ class HandGestureCNN:
                          input_shape=(*self.img_size, 3)),
             layers.BatchNormalization(),
             layers.MaxPooling2D((2, 2)),
-            layers.Dropout(0.25),
             
             # Second convolutional block
             layers.Conv2D(64, (3, 3), activation='relu'),
             layers.BatchNormalization(),
             layers.MaxPooling2D((2, 2)),
-            layers.Dropout(0.25),
+
             
             # Third convolutional block
             layers.Conv2D(128, (3, 3), activation='relu'),
             layers.BatchNormalization(),
             layers.MaxPooling2D((2, 2)),
-            layers.Dropout(0.25),
             
             # Fourth convolutional block
             layers.Conv2D(256, (3, 3), activation='relu'),
             layers.BatchNormalization(),
             layers.MaxPooling2D((2, 2)),
-            layers.Dropout(0.25),
             
             # Flatten and dense layers
             layers.Flatten(),

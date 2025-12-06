@@ -651,7 +651,7 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     model_path = f'hand_gesture_mediapipe_{timestamp}.pth'
     cnn.save_model(model_path)
-    cnn.save_model('hand_gesture_model.pth')
+    cnn.save_model('proposed_hand_gesture_model.pth')
     
     # Cleanup
     cnn.cleanup()
