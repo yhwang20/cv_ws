@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="asbr">
+
+
+  <!-- robot name parameter -->
+  <xacro:arg name="name" default="asbr"/>
+  
+  <!-- parameters -->
+  <xacro:arg name="prefix" default="" />
+
+  <xacro:include filename="$(find asbr_moveit)/srdf/asbr_macro.srdf.xacro"/>
+
+  <!--<xacro:asbr_srdf name="$(arg name)" prefix="$(arg prefix)"/>-->
+  <xacro:asbr_srdf name="$(arg name)" prefix=""/>
+
+</robot>
