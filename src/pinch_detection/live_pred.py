@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torchvision import transforms, models
 from collections import deque
+import mediapipe as mp
 
 class LiveGesturePredictor:
     """Real-time hand gesture prediction using trained CNN (PyTorch)."""
@@ -39,6 +40,7 @@ class LiveGesturePredictor:
             transforms.Normalize(mean=[0.485, 0.456, 0.406], 
                                std=[0.229, 0.224, 0.225])
         ])
+        
     
     def load_model(self, model_path):
         """Load the trained PyTorch model."""
@@ -268,7 +270,7 @@ def main():
     """Run live prediction."""
     try:
         predictor = LiveGesturePredictor(
-            model_path='hand_gesture_model.pth',
+            model_path='proposed_hand_gesture_model.pth',
             img_size=(224, 224)  # Default for EfficientNet
         )
         predictor.run(show_fps=True)

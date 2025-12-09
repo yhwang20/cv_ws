@@ -600,7 +600,7 @@ def main():
     print("=" * 60)
     
     # Initialize model with MediaPipe preprocessing
-    cnn = MediaPipeHandGestureCNN(img_size=(224, 224), use_hand_crop=True)
+    cnn = MediaPipeHandGestureCNN(img_size=(224, 224), use_hand_crop=False)
     
     # Load dataset
     print("\n1. Loading dataset with MediaPipe hand detection...")

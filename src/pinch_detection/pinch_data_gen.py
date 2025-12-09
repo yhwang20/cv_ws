@@ -3,9 +3,11 @@ import os
 from datetime import datetime
 import time
 
+test_name = "dark_cluttered_test"
+
 def create_directories():
     """Create directories for storing pinched and unpinched hand images."""
-    dirs = ['data/pinched', 'data/unpinched']
+    dirs = [f'test_data/{test_name}/pinched', f'test_data/{test_name}/unpinched']
     for dir_path in dirs:
         os.makedirs(dir_path, exist_ok=True)
     return dirs
@@ -100,7 +102,7 @@ def capture_gestures():
                 current_time = time.time()
                 if current_time - last_capture_time >= 0.1:
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                    filename = f"data/{mode}/{mode}_{timestamp}.jpg"
+                    filename = f"test_data/{test_name}/{mode}/{mode}_{timestamp}.jpg"
                     cv2.imwrite(filename, frame)
                     continuous_files.append((filename, current_time))  # Store filename with timestamp
                     photo_count[mode] += 1
@@ -118,7 +120,7 @@ def capture_gestures():
             else:
                 # Capture photo
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                filename = f"data/{mode}/{mode}_{timestamp}.jpg"
+                filename = f"test_data/{test_name}/{mode}/{mode}_{timestamp}.jpg"
                 cv2.imwrite(filename, frame)
                 photo_count[mode] += 1
                 print(f"Captured: {filename}")
@@ -148,7 +150,7 @@ def capture_gestures():
         elif key == 13 and not continuous_mode and not continuous_delay_active:  # Enter key
             # Capture photo instantly
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            filename = f"data/{mode}/{mode}_{timestamp}.jpg"
+            filename = f"test_data/{test_name}/{mode}/{mode}_{timestamp}.jpg"
             cv2.imwrite(filename, frame)
             photo_count[mode] += 1
             print(f"Captured instantly: {filename}")
