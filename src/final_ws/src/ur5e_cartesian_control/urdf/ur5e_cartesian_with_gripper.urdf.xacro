@@ -1,0 +1,94 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="ur5e">
+
+  <xacro:arg name="ur_type" default="ur5e"/>
+  <xacro:arg name="sim_ignition" default="false"/>
+  <xacro:arg name="use_fake_hardware" default="false"/>
+  <xacro:arg name="headless_mode" default="true"/>
+  <xacro:arg name="robot_ip" default="172.22.22.2"/>
+  <xacro:arg name="script_filename" default=""/>
+  <xacro:arg name="output_recipe_filename" default=""/>
+  <xacro:arg name="input_recipe_filename" default=""/>
+
+
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro" />
+  <xacro:include filename="$(find se3_sensor_driver)/urdf/se3_sensor.xacro"/>
+  
+  <!-- Include Robotiq 2F-85 Gripper - using local copy -->
+  <xacro:include filename="$(find ur5e_cartesian_control)/urdf/robotiq_arg2f_85_model_macro.xacro"/>
+
+  <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
+  <xacro:arg name="kinematics_params" default="$(find ur_description)/config/$(arg ur_type)/default_kinematics.yaml"/>
+  <xacro:arg name="physical_params" default="$(find ur_description)/config/$(arg ur_type)/physical_parameters.yaml"/>
+  <xacro:arg name="visual_params" default="$(find ur_description)/config/$(arg ur_type)/visual_parameters.yaml"/>
+  <xacro:arg name="positions" default="$(find ur5e_cartesian_control)/config/initial_positions.yaml"/>
+  <xacro:property name="initial_positions" default="$(arg positions)"/>
+
+  <link name="world" />
+  <xacro:ur_robot
+    name="ur5e"
+    tf_prefix=""
+    parent="world"
+    joint_limits_parameters_file="$(arg joint_limit_params)"
+    kinematics_parameters_file="$(arg kinematics_params)"
+    physical_parameters_file="$(arg physical_params)"
+    visual_parameters_file="$(arg visual_params)"
+    initial_positions="${xacro.load_yaml(initial_positions)}"
+    sim_ignition="$(arg sim_ignition)"
+    use_fake_hardware="$(arg use_fake_hardware)"
+    headless_mode="$(arg headless_mode)"
+    robot_ip="$(arg robot_ip)"
+    script_filename="$(arg script_filename)"
+    output_recipe_filename="$(arg output_recipe_filename)"
+    input_recipe_filename="$(arg input_recipe_filename)"
+  >
+
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </xacro:ur_robot>
+
+  <gazebo>
+    <plugin filename="libign_ros2_control-system.so" name="ign_ros2_control::IgnitionROS2ControlPlugin">
+      <parameters>$(find ur5e_cartesian_control)/config/ur5e_controller.yaml</parameters>
+      <controller_manager_node_name>controller_manager</controller_manager_node_name>
+    </plugin>
+  </gazebo>
+
+  <xacro:se3_sensor
+    name="ur5e"
+    robot_sensor_id="1"
+    target_sensor_id="2"
+    robot_sensor_ip="127.0.0.1"
+    target_sensor_ip="127.0.0.1"
+    use_fake_hardware="$(arg use_fake_hardware)">
+  </xacro:se3_sensor>
+
+  <!-- ==================== ROBOTIQ 2F-85 GRIPPER ==================== -->
+  
+  <!-- Instantiate the Robotiq 2F-85 gripper with prefix -->
+  <xacro:robotiq_arg2f_85 prefix="gripper_"/>
+  
+  <!-- Connect gripper to tool0 (mimicking the example pattern) -->
+  <joint name="tool0_gripper" type="fixed">
+    <parent link="tool0"/>
+    <child link="gripper_robotiq_arg2f_base_link"/>
+    <!-- Adjust orientation and position as needed for proper alignment -->
+    <origin xyz="0 0 0" rpy="0 0 ${pi/2}"/>
+  </joint>
+  
+  <!-- Add gripper joint to ros2_control for state publishing -->
+  <ros2_control name="gripper" type="system">
+    <hardware>
+      <plugin>mock_components/GenericSystem</plugin>
+      <param name="fake_sensor_commands">false</param>
+    </hardware>
+    <joint name="gripper_finger_joint">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+</robot>
+

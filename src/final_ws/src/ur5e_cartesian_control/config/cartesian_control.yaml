@@ -1,0 +1,89 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 500
+    
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    
+    cartesian_controller:
+      type: ros2_controllers_cartesian/CartesianController
+      
+    joint_trajectory_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+    
+    gripper_controller:
+      type: forward_command_controller/ForwardCommandController
+
+
+cartesian_controller:
+  ros__parameters:
+    robot_base_link: world
+    end_effector_link: tool0
+    tool_sensor_name: tool_sensed
+    target_sensor_name: target_sensed
+    use_tool_offset: true
+    control_gain: 3.0
+    error_threshold: 0.001
+    max_velocity: 200.0
+    min_distance: 0.01
+    
+    joints:
+      - shoulder_pan_joint
+      - shoulder_lift_joint
+      - elbow_joint
+      - wrist_1_joint
+      - wrist_2_joint
+      - wrist_3_joint
+    
+    command_interface_type: "velocity"
+    
+    sensors: 
+      - "tool_sensed/position.x"
+      - "tool_sensed/position.y"
+      - "tool_sensed/position.z"
+      - "tool_sensed/orientation.x"
+      - "tool_sensed/orientation.y"
+      - "tool_sensed/orientation.z"
+      - "tool_sensed/orientation.w"
+      - "target_sensed/position.x"
+      - "target_sensed/position.y"
+      - "target_sensed/position.z"
+      - "target_sensed/orientation.x"
+      - "target_sensed/orientation.y"
+      - "target_sensed/orientation.z"
+      - "target_sensed/orientation.w"
+
+    alpha: 0.9
+
+joint_trajectory_controller:
+  ros__parameters:
+    joints:
+      - shoulder_pan_joint
+      - shoulder_lift_joint
+      - elbow_joint
+      - wrist_1_joint
+      - wrist_2_joint
+      - wrist_3_joint
+    
+    command_interfaces:
+      - position
+    
+    state_interfaces:
+      - position
+      - velocity
+    
+    constraints:
+      goal_time: 0.6
+      stopped_velocity_tolerance: 0.05
+      shoulder_pan_joint: {trajectory: 0.2, goal: 0.1}
+      shoulder_lift_joint: {trajectory: 0.2, goal: 0.1}
+      elbow_joint: {trajectory: 0.2, goal: 0.1}
+      wrist_1_joint: {trajectory: 0.2, goal: 0.1}
+      wrist_2_joint: {trajectory: 0.2, goal: 0.1}
+      wrist_3_joint: {trajectory: 0.2, goal: 0.1}
+
+gripper_controller:
+  ros__parameters:
+    joints:
+      - gripper_finger_joint
+    interface_name: position
