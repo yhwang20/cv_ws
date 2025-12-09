@@ -56,6 +56,15 @@ with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as 
                          landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].z]
             base_angle = calculate_angle(right_hip, shoulder, elbow)
             elbow_angle = calculate_angle(shoulder, elbow, wrist)
+            cv2.putText(image, str(int(base_angle)), 
+                        tuple(np.multiply(shoulder[:2], [640, 480]).astype(int)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA
+                            )
+            cv2.putText(image, str(int(elbow_angle)), 
+                        tuple(np.multiply(elbow[:2], [640, 480]).astype(int)), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA
+                            )
+            
         except:
             pass
 
